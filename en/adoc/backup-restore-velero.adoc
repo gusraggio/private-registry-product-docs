@@ -153,6 +153,19 @@ Replace `<BACKUP_NAME>` with a name for the backup and `<RETENTION_DURATION>` wi
 File System Backup copies the volume content through the Velero node agent.
 It does not depend on volume snapshot support in the storage provider, so it also works with storage backends such as `local-path`.
 
+[NOTE]
+====
+If you use the Velero image from {sappco}, set `HOME` to `/scratch` in the Velero {helm} chart values file.
+Without a writable `HOME`, File System Backup can fail with `mkdir /udmrepo: permission denied`.
+
+[source,yaml]
+----
+configuration:
+  extraEnvVars:
+    - name: HOME
+      value: /scratch
+----
+====
 [source,bash,subs="+attributes"]
 ----
 {prompt_user}velero backup create <BACKUP_NAME> \
