@@ -255,11 +255,13 @@ If you back up with CSI snapshots, replace `--default-volumes-to-fs-backup` with
 
 [IMPORTANT]
 ====
-During a File System Backup restore, Velero adds an init container that uses the Velero image from {sappco} to the restored pods in the registry namespace.
+During a File System Backup restore, Velero adds an init container to restored pods in the registry namespace.
+This container uses the Velero image from {sappco}.
 That namespace does not contain the {sappco} pull secret, so the nodes of the recovery cluster must be able to pull the image themselves.
 Otherwise, the restored pods remain in the `ImagePullBackOff` state and the volume data is not restored.
 Before you restore, configure the {sappco} credentials in the container runtime of every node.
-For example, on {rke2a}, add the following to `/etc/rancher/rke2/registries.yaml` on every node, replacing `<APPCO_USERNAME>` and `<APPCO_PASSWORD>` with your {sappco} credentials, and restart the `rke2-server` or `rke2-agent` service:
+For example, on {rke2a}, add the following to `/etc/rancher/rke2/registries.yaml` on every node and restart the `rke2-server` or `rke2-agent` service.
+Replace `<APPCO_USERNAME>` and `<APPCO_PASSWORD>` with your {sappco} credentials:
 
 [source,yaml]
 ----
