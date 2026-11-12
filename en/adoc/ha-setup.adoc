@@ -6,11 +6,11 @@ include::../common/generic-attributes.adoc[]
 You can use {helm} to deploy the highly available (HA) {productnameshort} on a {kube} cluster.
 An HA deployment reduces interruptions when a pod or worker node becomes unavailable.
 It does not protect the registry from every failure.
-The database, cache, image storage, {ingress} endpoint, and {kube} cluster must also remain available.
+The database, cache, image storage, {ingress} endpoint and {kube} cluster must also remain available.
 
 This topic describes the {productnameshort}-specific choices and trade-offs.
-For {kube} control-plane and worker-node design, see the https://kubernetes.io/docs/setup/production-environment/production-environment/[Kubernetes production environment documentation].
-For Rancher-managed clusters, see the https://ranchermanager.docs.rancher.com/cluster-deployment/production-checklist/production-installation-checklist[Rancher production installation checklist].
+For {kube} control-plane and worker-node design, see the https://kubernetes.io/docs/setup/production-environment/[Kubernetes production environment documentation].
+For Rancher-managed clusters, see the link:https://documentation.suse.com/cloudnative/rancher-manager/latest/en/cluster-deployment/production-checklist/production-checklist.html[{ranchera} production installation checklist].
 
 [#pr-deployment-ha-architecture]
 === Understanding the {hasetup}
@@ -21,11 +21,11 @@ This protects the application from a pod or node failure, but only when the repl
 
 The stateful parts of the deployment require separate resilience decisions:
 
-* {postgresql} stores registry metadata, projects, users, and configuration.
-* {valkey} or {redis} stores sessions, queues, and cache data.
+* {postgresql} stores registry metadata, projects, users and configuration.
+* {valkey} or {redis} stores sessions, queues and cache data.
 * Image and chart storage holds the registry content.
 * Persistent volumes hold database data, job logs, and scanner data when the corresponding chart settings use PVCs.
-* The {ingress} controller, load balancer, DNS, and TLS endpoint provide access to the registry.
+* The {ingress} controller, load balancer, DNS and TLS endpoint provide access to the registry.
 
 {productnameshort} does not deploy or manage HA for these external endpoints and services.
 
@@ -206,20 +206,20 @@ Before deploying CloudNativePG, verify the following prerequisites:
 * A {kube} cluster with a storage class that supports dynamic volume provisioning.
 * `kubectl` and {helm} installed and configured for the cluster.
 * The https://cloudnative-pg.io/documentation/current/kubectl-plugin/[`kubectl cnpg` plugin] for status inspection and maintenance tasks.
-* Access to the CloudNativePG Helm chart, such as the Rancher Prime https://docs.apps.rancher.io/get-started/first-steps#what-is-application-collection[Application Collection] (`oci://dp.apps.rancher.io/charts/cloudnative-pg`) or upstream.
+* Access to the CloudNativePG Helm chart in the Rancher Prime https://docs.apps.rancher.io/get-started/first-steps#what-is-application-collection[Application Collection] (`oci://dp.apps.rancher.io/charts/cloudnative-pg`).
 * Sufficient node capacity for at least three {postgresql} instances (one primary and two standbys), each with dedicated storage.
 
 Verify supported versions before deploying:
 
 * *Operator chart version*: Check available chart versions from your repository. Cross-reference the version against the https://cloudnative-pg.io/documentation/current/supported_releases/[CloudNativePG release compatibility table] for your {kube} version.
-* *{postgresql} container image*: Review available container images in the https://github.com/cloudnative-pg/postgres-containers/pkgs/container/postgresql[CloudNativePG container repository]. Choose a version supported by the https://www.postgresql.org/support/versioning/[PostgreSQL versioning policy].
+* *{postgresql} container image*: Review available container images in the https://apps.rancher.io/applications/postgresql[Application Collection {postgresql} page]. Choose a version supported by the https://www.postgresql.org/support/versioning/[PostgreSQL versioning policy].
 
 Set environment variables for the selected versions:
 
 [source,bash,subs="+attributes"]
 ----
 {prompt_user}export CNPG_VERSION=<chart-version>
-{prompt_user}export CNPG_IMAGE=ghcr.io/cloudnative-pg/postgresql:<tag>
+{prompt_user}export CNPG_IMAGE=dp.apps.rancher.io/containers/postgresql:<tag>
 ----
 
 ==== Installing the CloudNativePG operator
@@ -238,6 +238,8 @@ Deploy the operator using {helm}:
 
 When your registry requires authentication, configure image pull secrets and specify `global.imagePullSecrets` in your Helm values.
 For example, create an image pull secret if you use the Rancher Prime Application Collection.
+Create the secret in the operator namespace and in the namespace where you deploy the `Cluster`.
+Set `spec.imagePullSecrets` in the `Cluster` resource as shown in the example.
 To generate credentials and create the secret, see the https://docs.apps.rancher.io/get-started/authentication[Application Collection authentication documentation].
 
 
@@ -265,8 +267,9 @@ metadata:
 spec:
   instances: 3
   imageName: $\{CNPG_IMAGE}
-  postgresUID: 26
-  postgresGID: 26
+  imagePullSecrets:
+  - name: application-collection
+  postgresUID: 999
   enableSuperuserAccess: false
   affinity:
     enablePodAntiAffinity: true
@@ -329,7 +332,7 @@ Follow these recommendations when running CloudNativePG with {productnameshort}:
 * *Run at least three instances.* Deploying three instances ensures that a standby remains available even if one node fails.
 * *Size connection pools appropriately.* Sum `maxOpenConns` across all component replicas and ensure the total remains well below `max_connections` in the database configuration.
 * *Restrict database privileges.* Keep `enableSuperuserAccess: false` to reduce the blast radius if application credentials leak.
-* *Preserve user IDs and image repositories.* Keep `postgresUID` and `postgresGID` set to `26` for upstream images and avoid major-version image changes without proper migration.
+* *Match user IDs to the image.* The Application Collection {postgresql} image uses UID `999`. Set `postgresUID: 999`; the upstream CloudNativePG operator defaults `postgresUID` to `26`, which causes initialization to fail with this image. The default `postgresGID` works with this image. Avoid major-version image changes without proper migration.
 * *Enforce TLS encryption.* Use `sslmode: verify-full` with trusted certificates. If you configure `require`, understand that it encrypts traffic without validating the server certificate.
 * *Configure disruption budgets.* Ensure pod disruption budgets prevent multiple instances from being evicted simultaneously during maintenance.
 * *Test switchover and failover.* Run `kubectl cnpg promote spr-postgres <CLUSTER_INSTANCE> -n <PRIVATE_REGISTRY_NAMESPACE>` during testing to verify that {productnameshort} recovers cleanly from a primary change.
